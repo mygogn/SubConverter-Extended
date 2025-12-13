@@ -36,6 +36,15 @@ jobs:
 
       - name: Rebase master onto upstream-master (replay your commits)
         run: |
+          set -e
           git checkout master
-          git rebase upstream-master
-          git push origin master --force-with-lease
+          if git rebase upstream-master; then
+            git push origin master --force-with-lease
+          else
+            echo "Rebase failed. Showing status and conflicts:"
+            git status --porcelain || true
+            git diff --name-only --diff-filter=U || true
+            git rebase --abort || true
+            exit 1
+          fi
+
