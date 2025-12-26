@@ -1,0 +1,135 @@
+From f3f07825d7955774ebc289dca903ce4bcb138c72 Mon Sep 17 00:00:00 2001
+From: Aethersailor <22260104+Aethersailor@users.noreply.github.com>
+Date: Fri, 26 Dec 2025 09:34:03 +0800
+Subject: [PATCH] feat: improve external config fallback logic and set default
+ config
+
+- Add automatic fallback to default_external_config when user-provided config fails
+- Set default_external_config to custom Clash rules repository
+- Ensure config always loads successfully with proper fallback chain
+- Add detailed logging for config loading process
+---
+ base/pref.example.ini      |  3 +--
+ base/pref.example.toml     |  3 +--
+ base/pref.example.yml      |  2 +-
+ src/handler/interfaces.cpp | 47 +++++++++++++++++++++++++++++++++++++-
+ 4 files changed, 49 insertions(+), 6 deletions(-)
+
+diff --git a/base/pref.example.ini b/base/pref.example.ini
+index 1b1b55c..d5fb321 100644
+--- a/base/pref.example.ini
++++ b/base/pref.example.ini
+@@ -29,8 +29,7 @@ enable_filter=false
+ ;         Script path: set value to "path:/path/to/script.js".
+ ;filter_script=function filter(node) {\n    const info = JSON.parse(node.ProxyInfo);\n    if(info.EncryptMethod.includes('chacha20'))\n        return true;\n    return false;\n}
+ 
+-;Setting an external config file as default when none is specified, supports local files/URL
+-;default_external_config=config/example_external_config.ini
++default_external_config=https://testingcf.jsdelivr.net/gh/Aethersailor/Custom_OpenClash_Rules@refs/heads/main/cfg/Custom_Clash.ini
+ 
+ ;The file scope limit of the 'rule_base' options in external configs.
+ base_path=base
+diff --git a/base/pref.example.toml b/base/pref.example.toml
+index 6448eb9..e56921e 100644
+--- a/base/pref.example.toml
++++ b/base/pref.example.toml
+@@ -36,8 +36,7 @@ enable_filter = false
+ #}
+ #'''
+ 
+-# Setting an external config file as default when none is specified, supports local files/URL
+-# default_external_config = "config/example_external_config.toml"
++default_external_config = "https://testingcf.jsdelivr.net/gh/Aethersailor/Custom_OpenClash_Rules@refs/heads/main/cfg/Custom_Clash.ini"
+ 
+ # The file scope limit of the 'rule_base' options in external configs.
+ base_path = "base"
+diff --git a/base/pref.example.yml b/base/pref.example.yml
+index 5e27275..c57cb34 100644
+--- a/base/pref.example.yml
++++ b/base/pref.example.yml
+@@ -9,7 +9,7 @@ common:
+   include_remarks: []
+   enable_filter: false
+   filter_script: ""
+-  default_external_config: "" # config/example_external_config.yml
++  default_external_config: "https://testingcf.jsdelivr.net/gh/Aethersailor/Custom_OpenClash_Rules@refs/heads/main/cfg/Custom_Clash.ini"
+   base_path: base
+   clash_rule_base: base/all_base.tpl
+   surge_rule_base: base/all_base.tpl
+diff --git a/src/handler/interfaces.cpp b/src/handler/interfaces.cpp
+index 40a7de3..cf00ed3 100644
+--- a/src/handler/interfaces.cpp
++++ b/src/handler/interfaces.cpp
+@@ -459,14 +459,19 @@ std::string subconverter(RESPONSE_CALLBACK_ARGS) {
+         ext.managed_config_prefix = global.managedConfigPrefix;
+ 
+     /// load external configuration
++    std::string userProvidedConfig = getUrlArg(argument, "config");
++    bool configLoadSuccess = false;
++    
+     if (argExternalConfig.empty())
+         argExternalConfig = global.defaultExtConfig;
++    
+     if (!argExternalConfig.empty()) {
+         //std::cerr<<"External configuration file provided. Loading...\n";
+         writeLog(0, "External configuration file provided. Loading...", LOG_LEVEL_INFO);
+         ExternalConfig extconf;
+         extconf.tpl_args = &tpl_args;
+         if (loadExternalConfig(argExternalConfig, extconf) == 0) {
++            configLoadSuccess = true;
+             if (!ext.nodelist) {
+                 checkExternalBase(extconf.sssub_rule_base, lSSSubBase);
+                 if (!lSimpleSubscription) {
+@@ -497,8 +502,48 @@ std::string subconverter(RESPONSE_CALLBACK_ARGS) {
+                 lExcludeRemarks = extconf.exclude;
+             argAddEmoji.define(extconf.add_emoji);
+             argRemoveEmoji.define(extconf.remove_old_emoji);
++        } else if (!userProvidedConfig.empty() && !global.defaultExtConfig.empty() && argExternalConfig != global.defaultExtConfig) {
++            // User provided config failed, fallback to default config
++            writeLog(0, "Failed to load user provided config, trying default config...", LOG_LEVEL_WARNING);
++            ExternalConfig extconf;
++            extconf.tpl_args = &tpl_args;
++            if (loadExternalConfig(global.defaultExtConfig, extconf) == 0) {
++                configLoadSuccess = true;
++                if (!ext.nodelist) {
++                    checkExternalBase(extconf.sssub_rule_base, lSSSubBase);
++                    if (!lSimpleSubscription) {
++                        checkExternalBase(extconf.clash_rule_base, lClashBase);
++                        checkExternalBase(extconf.surge_rule_base, lSurgeBase);
++                        checkExternalBase(extconf.surfboard_rule_base, lSurfboardBase);
++                        checkExternalBase(extconf.mellow_rule_base, lMellowBase);
++                        checkExternalBase(extconf.quan_rule_base, lQuanBase);
++                        checkExternalBase(extconf.quanx_rule_base, lQuanXBase);
++                        checkExternalBase(extconf.loon_rule_base, lLoonBase);
++                        checkExternalBase(extconf.singbox_rule_base, lSingBoxBase);
++
++                        if (!extconf.surge_ruleset.empty())
++                            lCustomRulesets = extconf.surge_ruleset;
++                        if (!extconf.custom_proxy_group.empty())
++                            lCustomProxyGroups = extconf.custom_proxy_group;
++                        ext.enable_rule_generator = extconf.enable_rule_generator;
++                        ext.overwrite_original_rules = extconf.overwrite_original_rules;
++                    }
++                }
++                if (!extconf.rename.empty())
++                    ext.rename_array = extconf.rename;
++                if (!extconf.emoji.empty())
++                    ext.emoji_array = extconf.emoji;
++                if (!extconf.include.empty())
++                    lIncludeRemarks = extconf.include;
++                if (!extconf.exclude.empty())
++                    lExcludeRemarks = extconf.exclude;
++                argAddEmoji.define(extconf.add_emoji);
++                argRemoveEmoji.define(extconf.remove_old_emoji);
++            }
+         }
+-    } else {
++    }
++    
++    if (!configLoadSuccess) {
+         if (!lSimpleSubscription) {
+             /// loading custom groups
+             if (!argCustomGroups.empty() && !ext.nodelist) {
+-- 
+2.52.0.windows.1
+
