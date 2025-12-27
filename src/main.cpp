@@ -171,7 +171,9 @@ int main(int argc, char *argv[]) {
       [](RESPONSE_CALLBACK_ARGS) -> std::string {
         return "SubConverter-Extended\n"
                "------------------------\n"
-               "A modern enhanced implementation of subconverter, for mihomo\n"
+               "An enhanced implementation of subconverter, aligned with the "
+               "current Mihomo configuration\n"
+               "Primarily intended for use alongside OpenClash\n"
                "Derived as a companion backend for the Custom_OpenClash_Rules "
                "project\n"
                "------------------------\n"
