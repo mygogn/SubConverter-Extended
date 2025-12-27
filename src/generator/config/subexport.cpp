@@ -38,6 +38,10 @@ static void insertProxyProvidersBeforeGroups(std::string &yaml_str,
   }
 
   std::string providers_str = "proxy-providers:\n" + providers_content;
+  // 确保末尾有换行符，避免与 proxy-groups 连在一起
+  if (!providers_str.empty() && providers_str.back() != '\n') {
+    providers_str += "\n";
+  }
   std::string groups_key = new_field_name ? "proxy-groups:" : "Proxy Group:";
 
   size_t groups_pos = yaml_str.find(groups_key);
