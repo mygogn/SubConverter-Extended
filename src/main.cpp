@@ -202,7 +202,7 @@ int main(int argc, char *argv[]) {
             backdrop-filter: blur(10px);
             border-radius: 20px;
             padding: 40px;
-            max-width: 700px;
+            max-width: 900px;
             width: 100%;
             box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
             border: 1px solid rgba(255, 255, 255, 0.18);
@@ -313,12 +313,12 @@ int main(int argc, char *argv[]) {
         </p>
         
         <p class="description">
-            Primarily intended for use alongside OpenClash
+            Primarily intended for use alongside <a href="https://github.com/vernesong/OpenClash" target="_blank">OpenClash</a>
         </p>
         
         <p class="description">
             Derived as a companion backend for the 
-            <a href="https://github.com/Aethersailor/Custom_OpenClash_Rules" target="_blank">Custom_OpenClash_Rules project</a>
+            <a href="https://github.com/Aethersailor/Custom_OpenClash_Rules" target="_blank">Custom_OpenClash_Rules</a> project
         </p>
         
         <div class="info-block">
