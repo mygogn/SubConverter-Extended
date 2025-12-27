@@ -687,12 +687,9 @@ std::string subconverter(RESPONSE_CALLBACK_ARGS) {
   urls = split(argUrl, "|");
   groupID = 0;
 
-  //  对于 Clash，使用 proxy-provider 模式
+  //  对于 Clash，区分节点链接和订阅链接
   if ((argTarget == "clash" || argTarget == "clashr") && !ext.nodelist) {
-    writeLog(0, "Using proxy-provider mode for Clash configuration.",
-             LOG_LEVEL_INFO);
-
-    // 区分节点链接和订阅链接
+    // 先区分节点链接和订阅链接
     std::vector<std::string> subscription_urls; // HTTP/HTTPS 订阅链接
     std::vector<std::string> node_urls; // 节点链接（vless://, vmess:// 等）
 
@@ -725,25 +722,37 @@ std::string subconverter(RESPONSE_CALLBACK_ARGS) {
       }
     }
 
-    // 为订阅链接创建 proxy-provider
-    for (std::string &x : subscription_urls) {
-      ProxyProvider provider;
-      provider.name = "provider_" + std::to_string(groupID + 1);
-      provider.url = x;
-      provider.interval = interval > 0 ? interval : 3600;
-      provider.groupId = groupID;
-      provider.path = "./providers/" + provider.name + ".yaml";
+    // 只有当有订阅链接时才启用 proxy-provider 模式
+    if (!subscription_urls.empty()) {
+      writeLog(0, "Found subscription URLs, enabling proxy-provider mode.",
+               LOG_LEVEL_INFO);
+      ext.use_proxy_provider = true;
 
-      // 将 include/exclude 参数转换为 filter
-      if (!argIncludeRemark.empty() && regValid(argIncludeRemark)) {
-        provider.filter = argIncludeRemark;
-      }
-      if (!argExcludeRemark.empty() && regValid(argExcludeRemark)) {
-        provider.exclude_filter = argExcludeRemark;
-      }
+      // 为订阅链接创建 proxy-provider
+      for (std::string &x : subscription_urls) {
+        ProxyProvider provider;
+        provider.name = "provider_" + std::to_string(groupID + 1);
+        provider.url = x;
+        provider.interval = interval > 0 ? interval : 3600;
+        provider.groupId = groupID;
+        provider.path = "./providers/" + provider.name + ".yaml";
 
-      ext.providers.push_back(provider);
-      groupID++;
+        // 将 include/exclude 参数转换为 filter
+        if (!argIncludeRemark.empty() && regValid(argIncludeRemark)) {
+          provider.filter = argIncludeRemark;
+        }
+        if (!argExcludeRemark.empty() && regValid(argExcludeRemark)) {
+          provider.exclude_filter = argExcludeRemark;
+        }
+
+        ext.providers.push_back(provider);
+        groupID++;
+      }
+    } else {
+      // 没有订阅链接，禁用 proxy-provider 模式
+      writeLog(0, "No subscription URLs found, disabling proxy-provider mode.",
+               LOG_LEVEL_INFO);
+      ext.use_proxy_provider = false;
     }
 
     // 节点链接使用原有逻辑直接解析
@@ -752,19 +761,7 @@ std::string subconverter(RESPONSE_CALLBACK_ARGS) {
                "Parsing " + std::to_string(node_urls.size()) +
                    " node links directly.",
                LOG_LEVEL_INFO);
-      // 如果没有订阅链接，只有节点链接，则完全禁用 proxy-provider 模式
-      if (subscription_urls.empty()) {
-        ext.use_proxy_provider = false;
-        writeLog(0,
-                 "No subscription URLs found, disabling proxy-provider mode.",
-                 LOG_LEVEL_INFO);
-      }
       importItems(node_urls, true);
-    }
-
-    // 如果没有任何 provider，确保禁用 proxy-provider 模式
-    if (ext.providers.empty()) {
-      ext.use_proxy_provider = false;
     }
   } else {
     // 其他格式保持原有逻辑，完全展开节点
