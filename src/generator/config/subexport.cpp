@@ -802,7 +802,7 @@ void proxyToClash(std::vector<Proxy> &nodes, YAML::Node &yamlnode,
       // 健康检查配置
       single_provider["health-check"]["enable"] = true;
       single_provider["health-check"]["url"] =
-          "http://www.gstatic.com/generate_204";
+          "https://cp.cloudflare.com/generate_204";
       single_provider["health-check"]["interval"] = 300;
 
       provider_node[p.name] = single_provider;
