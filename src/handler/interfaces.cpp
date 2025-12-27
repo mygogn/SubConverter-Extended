@@ -691,12 +691,42 @@ std::string subconverter(RESPONSE_CALLBACK_ARGS) {
   if ((argTarget == "clash" || argTarget == "clashr") && !ext.nodelist) {
     writeLog(0, "Using proxy-provider mode for Clash configuration.",
              LOG_LEVEL_INFO);
-    // proxy-provider 模式下不需要 importItems，直接使用原始 URL
+
+    // 区分节点链接和订阅链接
+    std::vector<std::string> subscription_urls; // HTTP/HTTPS 订阅链接
+    std::vector<std::string> node_urls; // 节点链接（vless://, vmess:// 等）
+
     for (std::string &x : urls) {
       x = regTrim(x);
-      writeLog(0, "Adding proxy provider from url '" + x + "'.",
-               LOG_LEVEL_INFO);
 
+      // 检查是否是节点链接（以协议前缀开头）
+      bool isNodeLink =
+          startsWith(x, "vless://") || startsWith(x, "vmess://") ||
+          startsWith(x, "ss://") || startsWith(x, "ssr://") ||
+          startsWith(x, "trojan://") || startsWith(x, "hysteria://") ||
+          startsWith(x, "hysteria2://") || startsWith(x, "hy2://") ||
+          startsWith(x, "tuic://") || startsWith(x, "snell://") ||
+          startsWith(x, "socks://") || startsWith(x, "http://") && !isLink(x);
+
+      if (isNodeLink) {
+        writeLog(0, "Detected node link: '" + x + "', will parse directly.",
+                 LOG_LEVEL_INFO);
+        node_urls.push_back(x);
+      } else if (isLink(x)) {
+        // HTTP/HTTPS 订阅链接
+        writeLog(
+            0, "Detected subscription link: '" + x + "', will create provider.",
+            LOG_LEVEL_INFO);
+        subscription_urls.push_back(x);
+      } else {
+        writeLog(0, "Unknown URL type: '" + x + "', treating as node link.",
+                 LOG_LEVEL_WARNING);
+        node_urls.push_back(x);
+      }
+    }
+
+    // 为订阅链接创建 proxy-provider
+    for (std::string &x : subscription_urls) {
       ProxyProvider provider;
       provider.name = "provider_" + std::to_string(groupID + 1);
       provider.url = x;
@@ -714,6 +744,17 @@ std::string subconverter(RESPONSE_CALLBACK_ARGS) {
 
       ext.providers.push_back(provider);
       groupID++;
+    }
+
+    // 节点链接使用原有逻辑直接解析
+    if (!node_urls.empty()) {
+      writeLog(0,
+               "Parsing " + std::to_string(node_urls.size()) +
+                   " node links directly.",
+               LOG_LEVEL_INFO);
+      ext.use_proxy_provider = false; // 临时禁用 proxy-provider 模式
+      importItems(node_urls, true);
+      ext.use_proxy_provider = !ext.providers.empty(); // 如果有 provider 则恢复
     }
   } else {
     // 其他格式保持原有逻辑，完全展开节点
