@@ -17,6 +17,10 @@ RUN go mod download
 # Copy Go source code
 COPY bridge/converter.go ./
 
+# Copy scripts for scheme generation
+COPY scripts/ ../scripts/
+RUN go run ../scripts/generate_schemes.go mihomo_schemes.h
+
 # Update go.sum with actual dependencies from source files
 RUN go mod tidy
 
@@ -89,6 +93,7 @@ COPY --from=go-builder /build/bridge/libmihomo.h /usr/include/
 # build subconverter from THIS repository source (provided by build context)
 WORKDIR /src
 COPY . /src
+COPY --from=go-builder /build/bridge/mihomo_schemes.h /src/src/parser/mihomo_schemes.h
 
 RUN set -xe && \
     [ -n "${SHA}" ] && sed -i "s/#define BUILD_ID \"\"/#define BUILD_ID \"${SHA}\"/" src/version.h || true && \
