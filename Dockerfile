@@ -15,6 +15,9 @@ RUN go mod download
 # Copy Go source code
 COPY bridge/converter.go ./
 
+# Update go.sum with actual dependencies from source files
+RUN go mod tidy
+
 # Build static library (enable CGO for Alpine)
 ENV CGO_ENABLED=1
 RUN go build \
