@@ -1,10 +1,12 @@
 # ========== GO BUILD STAGE ==========
-FROM golang:1.22-alpine AS go-builder
+FROM golang:1.22-bookworm AS go-builder
 
 WORKDIR /build/bridge
 
 # Install build dependencies (gcc required for CGO)
-RUN apk add --no-cache git build-base
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends git build-essential && \
+    rm -rf /var/lib/apt/lists/*
 
 # Copy Go module file
 COPY bridge/go.mod ./
@@ -18,7 +20,7 @@ COPY bridge/converter.go ./
 # Update go.sum with actual dependencies from source files
 RUN go mod tidy
 
-# Build static library (enable CGO for Alpine)
+# Build static library (enable CGO for glibc)
 ENV CGO_ENABLED=1
 RUN go build \
     -buildmode=c-archive \
@@ -31,15 +33,19 @@ RUN ls -lh libmihomo.a libmihomo.h && \
     file libmihomo.a
 
 # ========== C++ BUILD STAGE ==========
-FROM alpine:3.16 AS builder
+FROM debian:bookworm-slim AS builder
 ARG THREADS="4"
 ARG SHA=""
 
 WORKDIR /
 
-RUN set -xe && \
-    apk add --no-cache --virtual .build-tools git g++ build-base linux-headers cmake python3 ccache ninja && \
-    apk add --no-cache --virtual .build-deps curl-dev rapidjson-dev pcre2-dev yaml-cpp-dev
+# Install build dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    git g++ build-essential cmake python3 python3-pip \
+    libcurl4-openssl-dev libpcre2-dev rapidjson-dev \
+    libyaml-cpp-dev ca-certificates ninja-build ccache && \
+    rm -rf /var/lib/apt/lists/*
 
 # quickjspp
 RUN set -xe && \
@@ -86,15 +92,14 @@ COPY . /src
 
 RUN set -xe && \
     [ -n "${SHA}" ] && sed -i "s/#define BUILD_ID \"\"/#define BUILD_ID \"${SHA}\"/" src/version.h || true && \
-    python3 -m ensurepip && \
-    python3 -m pip install --no-cache-dir gitpython && \
+    python3 -m pip install --break-system-packages gitpython && \
     python3 scripts/update_rules.py -c scripts/rules_config.conf && \
     # Copy Go library to bridge directory for CMake detection
     mkdir -p bridge && \
     cp /usr/lib/libmihomo.a bridge/ && \
     cp /usr/include/libmihomo.h bridge/ && \
     # Configure ccache
-    export PATH="/usr/lib/ccache/bin:$PATH" && \
+    export PATH="/usr/lib/ccache:$PATH" && \
     export CCACHE_DIR=/tmp/ccache && \
     export CCACHE_COMPILERCHECK=content && \
     # Use Ninja generator and enable ccache
@@ -103,8 +108,13 @@ RUN set -xe && \
     ninja -j ${THREADS}
 
 # ========== FINAL STAGE ==========
-FROM alpine:3.16
-RUN apk add --no-cache --virtual subconverter-deps pcre2 libcurl yaml-cpp
+FROM debian:bookworm-slim
+
+# Install runtime dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    libpcre2-8-0 libcurl4 libyaml-cpp0.7 ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /src/subconverter /usr/bin/
 COPY --from=builder /src/base /base/
@@ -113,5 +123,5 @@ ENV TZ=Africa/Abidjan
 RUN ln -sf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 
 WORKDIR /base
-CMD subconverter
+CMD ["subconverter"]
 EXPOSE 25500/tcp
