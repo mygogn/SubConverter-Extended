@@ -317,6 +317,46 @@ void proxyToClash(std::vector<Proxy> &nodes, YAML::Node &yamlnode,
     singleproxy["server"] = x.Hostname;
     singleproxy["port"] = x.Port;
 
+    // Generic Pass-Through (Phase 9)
+    // If RawParams are present (from Mihomo parser), use them directly.
+    // This allows supporting any new protocol without modifying subconverter
+    // code.
+    if (!x.RawParams.empty()) {
+      for (const auto &[key, value] : x.RawParams) {
+        // Skip fields we already handled or want to override (e.g. name is
+        // handled by Remark)
+        if (key == "name" || key == "server" || key == "port" || key == "type")
+          continue;
+
+        // Try to infer type (int, bool) if possible, or just output string
+        // Since yaml-cpp handles types well, we can try to let it deduce,
+        // but RawParams stores strings.
+        // Ideally we just output the string and let Clash parse it.
+        // For safety, we can check if it looks like a number.
+        if (std::all_of(value.begin(), value.end(), ::isdigit)) {
+          try {
+            singleproxy[key] = std::stoi(value);
+          } catch (...) {
+            singleproxy[key] = value;
+          }
+        } else if (value == "true") {
+          singleproxy[key] = true;
+        } else if (value == "false") {
+          singleproxy[key] = false;
+        } else {
+          singleproxy[key] = value;
+        }
+      }
+
+      // Ensure type IS set from the mapped type string
+      // (getProxyTypeName handles the enum -> string mapping we did in Phase 8)
+      singleproxy["type"] = type;
+
+      // If we did pass-through, we can skip the specific switch-case logic
+      // below to avoid double-setting or overwriting with empty defaults.
+      continue;
+    }
+
     switch (x.Type) {
     case ProxyType::Shadowsocks:
       // latest clash core removed support for chacha20 encryption

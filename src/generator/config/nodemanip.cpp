@@ -271,6 +271,11 @@ int addNodes(std::string link, std::vector<Proxy> &allNodes, int groupID,
           // Map mihomo proxy type to subconverter ProxyType
           node.Type = getProxyTypeFromString(mnode.type);
 
+          // Copy all raw params for generic pass-through
+          for (const auto &[key, value] : mnode.params) {
+            node.RawParams[key] = value;
+          }
+
           // Add more types as needed
 
           node.Hostname = mnode.server;
