@@ -20,6 +20,8 @@ namespace mihomo {
         "socks",
         "socks5",
         "socks5h",
+        "http",
+        "https",
         "anytls",
     };
 }

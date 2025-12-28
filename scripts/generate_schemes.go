@@ -134,11 +134,21 @@ func main() {
 						if v.Kind == token.STRING {
 							val := strings.Trim(v.Value, "\"")
 
-							if val != "http" && val != "https" {
-								if !seen[val] {
-									schemes = append(schemes, val)
-									seen[val] = true
+							// Filter out transport-layer protocols (not standalone proxy protocols)
+							// ws, grpc, h2, httpupgrade are transport layers for vmess/vless/trojan
+							transportProtocols := []string{"ws", "grpc", "h2", "httpupgrade"}
+							isTransport := false
+							for _, tp := range transportProtocols {
+								if val == tp {
+									isTransport = true
+									break
 								}
+							}
+
+							// Include all standalone proxy protocols (including http/https)
+							if !isTransport && !seen[val] {
+								schemes = append(schemes, val)
+								seen[val] = true
 							}
 						}
 					}
