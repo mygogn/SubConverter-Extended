@@ -1051,39 +1051,31 @@ std::string proxyToClash(std::vector<Proxy> &nodes,
                         ext.overwrite_original_rules, ext.clash_new_field_name);
 
   // 提取 proxy-providers，手动控制输出顺序
+  // 使用之前在 998-1002 行已提取的 proxy_providers_yaml
   std::string proxy_providers_str;
-  if (yamlnode["proxy-providers"].IsDefined()) {
-    writeLog(0, "proxy-providers node is defined, extracting...",
-             LOG_LEVEL_INFO);
-    YAML::Node providers_node = yamlnode["proxy-providers"];
-    yamlnode.remove("proxy-providers");
+  if (!proxy_providers_yaml.empty()) {
+    writeLog(0, "Using previously extracted proxy-providers", LOG_LEVEL_INFO);
 
-    std::string providers_dump = YAML::Dump(providers_node);
-    writeLog(
-        0, "providers_dump length: " + std::to_string(providers_dump.length()),
-        LOG_LEVEL_INFO);
-
-    if (!providers_dump.empty()) {
-      size_t start_pos = 0;
-      if (providers_dump.find("---") == 0) {
-        size_t newline_pos = providers_dump.find('\n');
-        if (newline_pos != std::string::npos) {
-          start_pos = newline_pos + 1;
-        }
-      }
-
-      if (start_pos < providers_dump.length()) {
-        proxy_providers_str =
-            "proxy-providers:\n" + providers_dump.substr(start_pos);
-        writeLog(0,
-                 "Extracted proxy-providers, final length: " +
-                     std::to_string(proxy_providers_str.length()),
-                 LOG_LEVEL_INFO);
+    // proxy_providers_yaml 已经是 YAML::Dump 的结果
+    // 需要移除可能的文档分隔符 "---"
+    size_t start_pos = 0;
+    if (proxy_providers_yaml.find("---") == 0) {
+      size_t newline_pos = proxy_providers_yaml.find('\n');
+      if (newline_pos != std::string::npos) {
+        start_pos = newline_pos + 1;
       }
     }
+
+    if (start_pos < proxy_providers_yaml.length()) {
+      proxy_providers_str =
+          "proxy-providers:\n" + proxy_providers_yaml.substr(start_pos);
+      writeLog(0,
+               "Prepared proxy-providers for insertion, length: " +
+                   std::to_string(proxy_providers_str.length()),
+               LOG_LEVEL_INFO);
+    }
   } else {
-    writeLog(0, "WARNING: proxy-providers node is NOT defined in yamlnode!",
-             LOG_LEVEL_WARNING);
+    writeLog(0, "No proxy-providers to insert", LOG_LEVEL_INFO);
   }
 
   std::string yamlnode_str = YAML::Dump(yamlnode);
