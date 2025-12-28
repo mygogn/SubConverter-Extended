@@ -85,7 +85,7 @@ WORKDIR /src
 COPY . /src
 
 RUN set -xe && \
-    [ -n "${SHA}" ] && sed -i 's/#define BUILD_ID ""/#define BUILD_ID "'\"${SHA}\"'"/' src/version.h || true && \
+    [ -n "${SHA}" ] && sed -i "s/#define BUILD_ID \"\"/#define BUILD_ID \"${SHA}\"/" src/version.h || true && \
     python3 -m ensurepip && \
     python3 -m pip install --no-cache-dir gitpython && \
     python3 scripts/update_rules.py -c scripts/rules_config.conf && \
