@@ -328,24 +328,11 @@ void proxyToClash(std::vector<Proxy> &nodes, YAML::Node &yamlnode,
         if (key == "name" || key == "server" || key == "port" || key == "type")
           continue;
 
-        // Try to infer type (int, bool) if possible, or just output string
-        // Since yaml-cpp handles types well, we can try to let it deduce,
-        // but RawParams stores strings.
-        // Ideally we just output the string and let Clash parse it.
-        // For safety, we can check if it looks like a number.
-        if (std::all_of(value.begin(), value.end(), ::isdigit)) {
-          try {
-            singleproxy[key] = std::stoi(value);
-          } catch (...) {
-            singleproxy[key] = value;
-          }
-        } else if (value == "true") {
-          singleproxy[key] = true;
-        } else if (value == "false") {
-          singleproxy[key] = false;
-        } else {
-          singleproxy[key] = value;
-        }
+        // Output all values as strings and let YAML parser/Clash handle type
+        // conversion This preserves complex types (arrays, objects) that were
+        // JSON-serialized by mihomo_bridge YAML parsers can automatically
+        // recognize: "123" -> int, "true" -> bool, "[\"h2\"]" -> array
+        singleproxy[key] = value;
       }
 
       // Ensure type IS set from the mapped type string

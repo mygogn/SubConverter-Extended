@@ -1,6 +1,7 @@
 #ifndef PROXY_H_INCLUDED
 #define PROXY_H_INCLUDED
 
+#include <map>
 #include <string>
 #include <vector>
 
