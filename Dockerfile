@@ -23,6 +23,7 @@ RUN go mod tidy
 # Copy scripts for scheme generation
 COPY scripts/ ../scripts/
 RUN go run ../scripts/generate_schemes.go mihomo_schemes.h
+RUN go run ../scripts/generate_param_compat.go -o param_compat.h
 
 # Build static library (enable CGO for glibc)
 ENV CGO_ENABLED=1
@@ -94,6 +95,7 @@ COPY --from=go-builder /build/bridge/libmihomo.h /usr/include/
 WORKDIR /src
 COPY . /src
 COPY --from=go-builder /build/bridge/mihomo_schemes.h /src/src/parser/mihomo_schemes.h
+COPY --from=go-builder /build/bridge/param_compat.h /src/src/parser/param_compat.h
 
 RUN set -xe && \
     [ -n "${SHA}" ] && sed -i "s/#define BUILD_ID \"\"/#define BUILD_ID \"${SHA}\"/" src/version.h || true && \

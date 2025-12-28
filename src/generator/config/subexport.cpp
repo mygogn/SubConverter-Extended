@@ -10,6 +10,7 @@
 #include "handler/settings.h"
 #include "nodemanip.h"
 #include "parser/config/proxy.h"
+#include "parser/param_compat.h"
 #include "ruleconvert.h"
 #include "script/script_quickjs.h"
 #include "utils/bitwise.h"
@@ -317,11 +318,16 @@ void proxyToClash(std::vector<Proxy> &nodes, YAML::Node &yamlnode,
     singleproxy["server"] = x.Hostname;
     singleproxy["port"] = x.Port;
 
-    // Generic Pass-Through (Phase 9)
+    // Generic Pass-Through (Phase 9 + 9.3: Smart Global Parameter Application)
     // If RawParams are present (from Mihomo parser), use them directly.
     // This allows supporting any new protocol without modifying subconverter
     // code.
     if (!x.RawParams.empty()) {
+      // Get protocol type for compatibility check
+      std::string protocol =
+          x.RawParams.count("type") ? x.RawParams["type"] : "";
+
+      // Output all RawParams
       for (const auto &[key, value] : x.RawParams) {
         // Skip fields we already handled or want to override (e.g. name is
         // handled by Remark)
@@ -333,6 +339,40 @@ void proxyToClash(std::vector<Proxy> &nodes, YAML::Node &yamlnode,
         // JSON-serialized by mihomo_bridge YAML parsers can automatically
         // recognize: "123" -> int, "true" -> bool, "[\"h2\"]" -> array
         singleproxy[key] = value;
+      }
+
+      // Phase 9.3: Smart Global Parameter Application
+      // Apply global parameters only if:
+      // 1. Protocol supports the parameter (checked via param_compat.h)
+      // 2. Parameter not already present in RawParams (from mihomo)
+
+      // UDP support
+      if (!udp.is_undef() && x.RawParams.find("udp") == x.RawParams.end()) {
+        if (mihomo::isParamSupported(protocol, "udp")) {
+          singleproxy["udp"] = udp.get();
+        }
+      }
+
+      // Skip Certificate Verification
+      if (!scv.is_undef() &&
+          x.RawParams.find("skip-cert-verify") == x.RawParams.end()) {
+        if (mihomo::isParamSupported(protocol, "skip-cert-verify")) {
+          singleproxy["skip-cert-verify"] = scv.get();
+        }
+      }
+
+      // TCP Fast Open
+      if (!tfo.is_undef() && x.RawParams.find("tfo") == x.RawParams.end()) {
+        if (mihomo::isParamSupported(protocol, "tfo")) {
+          singleproxy["tfo"] = tfo.get();
+        }
+      }
+
+      // XUDP support
+      if (!xudp.is_undef() && x.RawParams.find("xudp") == x.RawParams.end()) {
+        if (mihomo::isParamSupported(protocol, "xudp")) {
+          singleproxy["xudp"] = xudp.get();
+        }
       }
 
       // If we did pass-through, we can skip the specific switch-case logic
