@@ -183,8 +183,43 @@ int main(int argc, char *argv[]) {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="light dark">
     <title>SubConverter-Extended</title>
     <style>
+        :root {
+            /* Light Theme (Default) */
+            --bg-gradient: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
+            --container-bg: rgba(255, 255, 255, 0.7);
+            --container-border: rgba(255, 255, 255, 0.4);
+            --shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.1);
+            --text-primary: #2d3748;
+            --text-secondary: #4a5568;
+            --divider-bg: linear-gradient(90deg, transparent, rgba(0,0,0,0.1), transparent);
+            --info-block-bg: rgba(0, 0, 0, 0.03);
+            --info-block-border: rgba(0,0,0,0.05);
+            --link-color: #667eea;
+            --link-hover: #764ba2;
+            --text-shadow: none;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                /* Dark Theme */
+                --bg-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                --container-bg: rgba(255, 255, 255, 0.1);
+                --container-border: rgba(255, 255, 255, 0.18);
+                --shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
+                --text-primary: #ffffff;
+                --text-secondary: rgba(255, 255, 255, 0.95);
+                --divider-bg: linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent);
+                --info-block-bg: rgba(255, 255, 255, 0.08);
+                --info-block-border: rgba(255,255,255,0.6);
+                --link-color: #ffd700;
+                --link-hover: #ffed4e;
+                --text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+            }
+        }
+
         * { margin: 0; padding: 0; box-sizing: border-box; }
         
         body {
@@ -193,20 +228,24 @@ int main(int argc, char *argv[]) {
             display: flex;
             align-items: center;
             justify-content: center;
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            background: var(--bg-gradient);
             padding: 20px;
+            color: var(--text-primary);
+            transition: background 0.3s ease, color 0.3s ease;
         }
         
         .container {
-            background: rgba(255, 255, 255, 0.1);
+            background: var(--container-bg);
             backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
             border-radius: 20px;
             padding: 40px;
             max-width: 900px;
             width: 100%;
-            box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
-            border: 1px solid rgba(255, 255, 255, 0.18);
+            box-shadow: var(--shadow);
+            border: 1px solid var(--container-border);
             animation: fadeIn 0.6s ease-out;
+            transition: background 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
         }
         
         @keyframes fadeIn {
@@ -215,36 +254,36 @@ int main(int argc, char *argv[]) {
         }
         
         h1 {
-            color: #ffffff;
+            color: var(--text-primary);
             font-size: 2.5em;
             margin-bottom: 20px;
             font-weight: 700;
-            text-shadow: 2px 2px 4px rgba(0,0,0,0.1);
+            text-shadow: var(--text-shadow);
         }
         
         .divider {
             height: 1px;
-            background: linear-gradient(90deg, transparent, rgba(255,255,255,0.5), transparent);
+            background: var(--divider-bg);
             margin: 25px 0;
         }
         
         .description {
-            color: rgba(255, 255, 255, 0.95);
+            color: var(--text-secondary);
             font-size: 1.05em;
             line-height: 1.8;
             margin-bottom: 15px;
         }
         
         .info-block {
-            background: rgba(255, 255, 255, 0.08);
+            background: var(--info-block-bg);
             border-radius: 12px;
             padding: 20px;
             margin: 25px 0;
-            border-left: 4px solid rgba(255,255,255,0.6);
+            border-left: 4px solid var(--info-block-border);
         }
         
         .info-row {
-            color: rgba(255, 255, 255, 0.95);
+            color: var(--text-secondary);
             font-size: 1.1em;
             margin: 10px 0;
             display: flex;
@@ -254,11 +293,11 @@ int main(int argc, char *argv[]) {
         .info-label {
             font-weight: 600;
             min-width: 90px;
-            color: rgba(255, 255, 255, 1);
+            color: var(--text-primary);
         }
         
         a {
-            color: #ffd700;
+            color: var(--link-color);
             text-decoration: none;
             position: relative;
             transition: all 0.3s ease;
@@ -272,7 +311,7 @@ int main(int argc, char *argv[]) {
             left: 0;
             width: 0;
             height: 2px;
-            background: #ffd700;
+            background: var(--link-color);
             transition: width 0.3s ease;
         }
         
@@ -281,15 +320,16 @@ int main(int argc, char *argv[]) {
         }
         
         a:hover {
-            color: #ffed4e;
-            text-shadow: 0 0 8px rgba(255, 215, 0, 0.6);
+            color: var(--link-hover);
+            text-shadow: 0 0 8px rgba(var(--link-hover), 0.4);
         }
         
         .footer {
             margin-top: 25px;
             padding-top: 20px;
             text-align: center;
-            color: rgba(255, 255, 255, 0.8);
+            color: var(--text-secondary);
+            opacity: 0.8;
             font-size: 0.9em;
         }
         
