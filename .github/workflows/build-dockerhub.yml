@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - master
-      - dev
     paths-ignore:
       - '.github/workflows/**'
       - 'README.md'
@@ -49,7 +48,6 @@ jobs:
           images: aethersailor/subconverter
           tags: |
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/master' }}
-            type=raw,value=dev,enable=${{ github.ref == 'refs/heads/dev' }}
 
       - name: Build and push
         uses: docker/build-push-action@v6

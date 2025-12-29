@@ -3,7 +3,7 @@ name: Update Mihomo Core
 on:
   push:
     branches:
-      - dev
+      - master
     paths:
       - '.github/workflows/update-mihomo.yml'
   schedule:
@@ -17,7 +17,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          ref: dev # Update the dev branch
+          ref: master # Update the master branch
 
       - name: Setup Go
         uses: actions/setup-go@v5
@@ -53,4 +53,4 @@ jobs:
           
           git add bridge/go.mod bridge/go.sum
           git commit -m "chore: auto-update mihomo core to $VERSION"
-          git push origin dev
+          git push origin master
