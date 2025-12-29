@@ -400,46 +400,30 @@ int main(int argc, char *argv[]) {
 </html>)";
       });
 
-  webServer.append_response(
-      "GET", "/refreshrules", "text/plain",
-      [](RESPONSE_CALLBACK_ARGS) -> std::string {
-        if (!global.accessToken.empty()) {
-          std::string token = getUrlArg(request.argument, "token");
-          if (token != global.accessToken) {
-            response.status_code = 403;
-            return "Forbidden\n";
-          }
-        }
-        refreshRulesets(global.customRulesets, global.rulesetsContent);
-        return "done\n";
-      });
+  webServer.append_response("GET", "/refreshrules", "text/plain",
+                            [](RESPONSE_CALLBACK_ARGS) -> std::string {
+                              // Token authentication disabled - no
+                              // authorization required
+                              refreshRulesets(global.customRulesets,
+                                              global.rulesetsContent);
+                              return "done\n";
+                            });
 
-  webServer.append_response(
-      "GET", "/readconf", "text/plain",
-      [](RESPONSE_CALLBACK_ARGS) -> std::string {
-        if (!global.accessToken.empty()) {
-          std::string token = getUrlArg(request.argument, "token");
-          if (token != global.accessToken) {
-            response.status_code = 403;
-            return "Forbidden\n";
-          }
-        }
-        readConf();
-        if (!global.updateRulesetOnRequest)
-          refreshRulesets(global.customRulesets, global.rulesetsContent);
-        return "done\n";
-      });
+  webServer.append_response("GET", "/readconf", "text/plain",
+                            [](RESPONSE_CALLBACK_ARGS) -> std::string {
+                              // Token authentication disabled - no
+                              // authorization required
+                              readConf();
+                              if (!global.updateRulesetOnRequest)
+                                refreshRulesets(global.customRulesets,
+                                                global.rulesetsContent);
+                              return "done\n";
+                            });
 
   webServer.append_response(
       "POST", "/updateconf", "text/plain",
       [](RESPONSE_CALLBACK_ARGS) -> std::string {
-        if (!global.accessToken.empty()) {
-          std::string token = getUrlArg(request.argument, "token");
-          if (token != global.accessToken) {
-            response.status_code = 403;
-            return "Forbidden\n";
-          }
-        }
+        // Token authentication disabled - no authorization required
         std::string type = getUrlArg(request.argument, "type");
         if (type == "form" || type == "direct") {
           fileWrite(global.prefPath, request.postdata, true);
@@ -456,11 +440,8 @@ int main(int argc, char *argv[]) {
 
   webServer.append_response("GET", "/flushcache", "text/plain",
                             [](RESPONSE_CALLBACK_ARGS) -> std::string {
-                              if (getUrlArg(request.argument, "token") !=
-                                  global.accessToken) {
-                                response.status_code = 403;
-                                return "Forbidden";
-                              }
+                              // Token authentication disabled - no
+                              // authorization required
                               flushCache();
                               return "done";
                             });
