@@ -5,6 +5,11 @@ on:
     branches:
       - master
       - dev
+    paths-ignore:
+      - '.github/workflows/**'
+      - 'README.md'
+      - 'README-*.md'
+      - '.travis.yml'
   workflow_dispatch: {}
 
 permissions:
