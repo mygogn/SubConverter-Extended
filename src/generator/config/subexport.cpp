@@ -334,11 +334,21 @@ void proxyToClash(std::vector<Proxy> &nodes, YAML::Node &yamlnode,
         if (key == "name" || key == "server" || key == "port")
           continue;
 
-        // Output all values as strings and let YAML parser/Clash handle type
-        // conversion This preserves complex types (arrays, objects) that were
-        // JSON-serialized by mihomo_bridge YAML parsers can automatically
-        // recognize: "123" -> int, "true" -> bool, "[\"h2\"]" -> array
-        singleproxy[key] = value;
+        // Check if value is a JSON string (starts with { or [)
+        // If so, parse it back to YAML structure
+        if (!value.empty() && (value[0] == '{' || value[0] == '[')) {
+          try {
+            // Parse JSON string to YAML node
+            YAML::Node parsed = YAML::Load(value);
+            singleproxy[key] = parsed;
+          } catch (...) {
+            // If parsing fails, use as-is
+            singleproxy[key] = value;
+          }
+        } else {
+          // Regular string value
+          singleproxy[key] = value;
+        }
       }
 
       // Phase 9.3+: Smart Global Parameter Application with Hardcode Protection
