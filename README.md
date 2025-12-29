@@ -254,9 +254,9 @@ managed_config_prefix = "http://localhost:25500"  # 托管配置前缀
 
 本项目使用或引用了以下开源项目，在此表示感谢：
 
-* [Mihomo](https://github.com/MetaCubeX/mihomo) - Clash 内核，提供节点解析能力
-* [Custom_OpenClash_Rules](https://github.com/Aethersailor/Custom_OpenClash_Rules) - OpenClash 规则集项目
-* [subconverter](https://github.com/asdlokj1qpi233/subconverter) - 原版项目
+* [MetaCubeX/mihomo](https://github.com/MetaCubeX/mihomo) - Clash 内核，提供节点解析能力
+* [Aethersailor/Custom_OpenClash_Rules](https://github.com/Aethersailor/Custom_OpenClash_Rules) - OpenClash 规则集项目
+* [asdlokj1qpi233/subconverter](https://github.com/asdlokj1qpi233/subconverter) - 原版项目
 
 ---
 
