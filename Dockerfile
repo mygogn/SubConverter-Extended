@@ -8,16 +8,16 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends git build-essential && \
     rm -rf /var/lib/apt/lists/*
 
-# Copy Go module file
-COPY bridge/go.mod ./
-
-# Download dependencies (this will auto-generate go.sum)
-RUN go mod download
-
-# Copy Go source code
+# Copy Go source code FIRST (needed for dependency analysis)
 COPY bridge/converter.go ./
 
-# Update go.sum with actual dependencies from source files
+# Initialize new go.mod dynamically
+RUN go mod init github.com/aethersailor/subconverter-extended/bridge
+
+# Get latest Mihomo and resolve all dependencies
+RUN go get github.com/metacubex/mihomo@Meta
+
+# Tidy dependencies (auto-resolves transitive deps)
 RUN go mod tidy
 
 # Copy scripts for scheme generation
