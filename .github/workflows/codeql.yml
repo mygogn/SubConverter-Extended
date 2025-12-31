@@ -1,0 +1,64 @@
+name: "CodeQL"
+
+on:
+  push:
+    branches: [ "dev" ]
+  pull_request:
+    branches: [ "dev" ]
+  schedule:
+    - cron: '30 1 * * 0'
+
+jobs:
+  analyze:
+    name: Analyze
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [ 'cpp' ]
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            cmake \
+            libpcre2-dev \
+            libyaml-cpp-dev \
+            libcurl4-openssl-dev
+
+    # QuickJS needs to be built because the project expects libquickjs.a
+    - name: Build QuickJS
+      run: |
+        git clone --depth=1 https://github.com/ftk/quickjspp.git
+        cd quickjspp
+        git submodule update --init
+        cmake -DCMAKE_BUILD_TYPE=Release .
+        make quickjs -j$(nproc)
+        sudo install -d /usr/lib/quickjs/
+        sudo install -m644 quickjs/libquickjs.a /usr/lib/quickjs/
+        sudo install -d /usr/include/quickjs/
+        sudo install -m644 quickjs/quickjs.h quickjs/quickjs-libc.h /usr/include/quickjs/
+        sudo install -m644 quickjspp.hpp /usr/include/
+
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v3
+      with:
+        languages: ${{ matrix.language }}
+
+    - name: Autobuild
+      uses: github/codeql-action/autobuild@v3
+
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v3
+      with:
+        category: "/language:${{matrix.language}}"
