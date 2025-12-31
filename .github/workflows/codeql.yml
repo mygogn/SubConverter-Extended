@@ -102,8 +102,14 @@ jobs:
         fi
         cron_include_dir="$(dirname "$cron_header")"
         sudo cp -r "$cron_include_dir"/* /usr/local/include/libcron/
+        libcron_lib="$(find . -type f -name liblibcron.a -print -quit)"
+        if [ -z "$libcron_lib" ]; then
+          echo "libcron static library not found (liblibcron.a missing)"
+          find . -maxdepth 5 -type f -name "*.a" -print
+          exit 1
+        fi
         # Date library is provided by apt package libhowardhinnant-date-dev
-        sudo install -m644 out/Release/liblibcron.a /usr/local/lib/
+        sudo install -m644 "$libcron_lib" /usr/local/lib/
 
     # [SETUP] Restore Artifacts if Cache Hit
     - name: Restore Artifacts
@@ -131,7 +137,13 @@ jobs:
         fi
         cron_include_dir="$(dirname "$cron_header")"
         sudo cp -r "$cron_include_dir"/* /usr/local/include/libcron/
-        sudo install -m644 out/Release/liblibcron.a /usr/local/lib/
+        libcron_lib="$(find . -type f -name liblibcron.a -print -quit)"
+        if [ -z "$libcron_lib" ]; then
+          echo "libcron static library not found (liblibcron.a missing)"
+          find . -maxdepth 5 -type f -name "*.a" -print
+          exit 1
+        fi
+        sudo install -m644 "$libcron_lib" /usr/local/lib/
         cd ..
 
     - name: Initialize CodeQL
