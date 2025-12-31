@@ -400,6 +400,7 @@ int main(int argc, char *argv[]) {
 </html>)";
       });
 
+  /*
   webServer.append_response("GET", "/refreshrules", "text/plain",
                             [](RESPONSE_CALLBACK_ARGS) -> std::string {
                               // Token authentication disabled - no
@@ -408,7 +409,9 @@ int main(int argc, char *argv[]) {
                                               global.rulesetsContent);
                               return "done\n";
                             });
+  */
 
+  /*
   webServer.append_response("GET", "/readconf", "text/plain",
                             [](RESPONSE_CALLBACK_ARGS) -> std::string {
                               // Token authentication disabled - no
@@ -419,7 +422,9 @@ int main(int argc, char *argv[]) {
                                                 global.rulesetsContent);
                               return "done\n";
                             });
+  */
 
+  /*
   webServer.append_response(
       "POST", "/updateconf", "text/plain",
       [](RESPONSE_CALLBACK_ARGS) -> std::string {
@@ -437,7 +442,9 @@ int main(int argc, char *argv[]) {
           refreshRulesets(global.customRulesets, global.rulesetsContent);
         return "done\n";
       });
+  */
 
+  /*
   webServer.append_response("GET", "/flushcache", "text/plain",
                             [](RESPONSE_CALLBACK_ARGS) -> std::string {
                               // Token authentication disabled - no
@@ -445,6 +452,7 @@ int main(int argc, char *argv[]) {
                               flushCache();
                               return "done";
                             });
+  */
 
   webServer.append_response("GET", "/sub", "text/plain;charset=utf-8",
                             subconverter);
