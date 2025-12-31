@@ -1,0 +1,175 @@
+name: "CodeQL"
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "dev" ]
+  pull_request:
+    branches: [ "dev" ]
+  schedule:
+    - cron: '28 16 * * 0'
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+      packages: read
+      security-events: write
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - language: c-cpp
+            build-mode: manual
+          - language: go
+            build-mode: autobuild
+          - language: python
+            build-mode: none
+          - language: actions
+            build-mode: none
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    # [OPTIMIZATION] Cache build artifacts (QuickJSPP & LibCron)
+    - name: Cache Build Artifacts
+      if: matrix.language == 'c-cpp'
+      id: cache-cpp-deps
+      uses: actions/cache@v4
+      with:
+        path: |
+          /usr/lib/quickjs
+          /usr/include/quickjs
+          /usr/include/quickjspp.hpp
+          quickjspp
+          /usr/local/include/libcron
+          /usr/local/lib/liblibcron.a
+          libcron
+        key: ${{ runner.os }}-cpp-deps-v2-${{ hashFiles('.github/workflows/codeql.yml') }}
+
+    # [SETUP] Install C++ dependencies
+    - name: Install C++ dependencies
+      if: matrix.language == 'c-cpp'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends \
+            build-essential \
+            cmake \
+            libpcre2-dev \
+            rapidjson-dev \
+            libyaml-cpp-dev \
+            libcurl4-openssl-dev \
+            libhowardhinnant-date-dev
+
+    # [SETUP] Install toml11 (v4.3.0) for compatible API
+    - name: Install toml11
+      if: matrix.language == 'c-cpp'
+      run: |
+        git clone --depth=1 --branch v4.3.0 https://github.com/ToruNiina/toml11
+        cmake -S toml11 -B toml11/build -DTOML11_INSTALL=ON -DTOML11_BUILD_TESTS=OFF -DTOML11_BUILD_EXAMPLES=OFF
+        cmake --build toml11/build -j$(nproc)
+        sudo cmake --install toml11/build
+
+    # [SETUP] Build QuickJS (Only if cache missed)
+    - name: Build QuickJS
+      if: matrix.language == 'c-cpp' && steps.cache-cpp-deps.outputs.cache-hit != 'true'
+      run: |
+        git clone --depth=1 https://github.com/ftk/quickjspp.git
+        cd quickjspp
+        git submodule update --init
+        cmake -DCMAKE_BUILD_TYPE=Release .
+        make quickjs -j$(nproc)
+        sudo install -d /usr/lib/quickjs/
+        sudo install -m644 quickjs/libquickjs.a /usr/lib/quickjs/
+        sudo install -d /usr/include/quickjs/
+        sudo install -m644 quickjs/quickjs.h quickjs/quickjs-libc.h /usr/include/quickjs/
+        sudo install -m644 quickjspp.hpp /usr/include/
+
+    # [SETUP] Build LibCron (Only if cache missed)
+    - name: Build LibCron
+      if: matrix.language == 'c-cpp' && steps.cache-cpp-deps.outputs.cache-hit != 'true'
+      run: |
+        git clone https://github.com/PerMalmberg/libcron
+        cd libcron
+        git checkout v1.3.0  # Pin version for stability
+        # Force disable tests by modifying CMakeLists.txt (no option provided upstream)
+        sed -i '/add_subdirectory(test)/d' CMakeLists.txt
+        sed -i '/add_dependencies(cron_test libcron)/d' CMakeLists.txt
+        cmake -DCMAKE_BUILD_TYPE=Release .
+        make -j$(nproc)
+        # Manual install (make install fails due to missing target)
+        sudo install -d /usr/local/include/libcron
+        cron_header="$(find . -type f -name Cron.h -print -quit)"
+        if [ -z "$cron_header" ]; then
+          echo "libcron headers not found (Cron.h missing)"
+          find . -maxdepth 4 -type d -name include -print
+          exit 1
+        fi
+        cron_include_dir="$(dirname "$cron_header")"
+        sudo cp -r "$cron_include_dir"/* /usr/local/include/libcron/
+        libcron_lib="$(find . -type f -name liblibcron.a -print -quit)"
+        if [ -z "$libcron_lib" ]; then
+          echo "libcron static library not found (liblibcron.a missing)"
+          find . -maxdepth 5 -type f -name "*.a" -print
+          exit 1
+        fi
+        # Date library is provided by apt package libhowardhinnant-date-dev
+        sudo install -m644 "$libcron_lib" /usr/local/lib/
+
+    # [SETUP] Restore Artifacts if Cache Hit
+    - name: Restore Artifacts
+      if: matrix.language == 'c-cpp' && steps.cache-cpp-deps.outputs.cache-hit == 'true'
+      run: |
+        echo "Restoring artifacts from cache..."
+        
+        # Restore QuickJS
+        cd quickjspp
+        sudo install -d /usr/lib/quickjs/
+        sudo install -m644 quickjs/libquickjs.a /usr/lib/quickjs/
+        sudo install -d /usr/include/quickjs/
+        sudo install -m644 quickjs/quickjs.h quickjs/quickjs-libc.h /usr/include/quickjs/
+        sudo install -m644 quickjspp.hpp /usr/include/
+        cd ..
+
+        # Restore LibCron
+        cd libcron
+        sudo install -d /usr/local/include/libcron
+        cron_header="$(find . -type f -name Cron.h -print -quit)"
+        if [ -z "$cron_header" ]; then
+          echo "libcron headers not found (Cron.h missing)"
+          find . -maxdepth 4 -type d -name include -print
+          exit 1
+        fi
+        cron_include_dir="$(dirname "$cron_header")"
+        sudo cp -r "$cron_include_dir"/* /usr/local/include/libcron/
+        libcron_lib="$(find . -type f -name liblibcron.a -print -quit)"
+        if [ -z "$libcron_lib" ]; then
+          echo "libcron static library not found (liblibcron.a missing)"
+          find . -maxdepth 5 -type f -name "*.a" -print
+          exit 1
+        fi
+        sudo install -m644 "$libcron_lib" /usr/local/lib/
+        cd ..
+
+    - name: Initialize CodeQL
+      uses: github/codeql-action/init@v4
+      with:
+        languages: ${{ matrix.language }}
+        build-mode: ${{ matrix.build-mode }}
+        queries: security-and-quality
+
+    - name: Build (manual)
+      if: matrix.language == 'c-cpp'
+      run: |
+        cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_PREFIX_PATH=/usr/local
+        cmake --build build -j$(nproc)
+
+    - name: Perform CodeQL Analysis
+      uses: github/codeql-action/analyze@v4
+      with:
+        category: "/language:${{matrix.language}}"
