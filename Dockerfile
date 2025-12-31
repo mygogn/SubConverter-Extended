@@ -50,7 +50,7 @@ WORKDIR /
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
     git g++ build-essential cmake python3 python3-pip \
-    pkg-config \
+    pkg-config wget \
     libcurl4-openssl-dev libpcre2-dev rapidjson-dev \
     libyaml-cpp-dev ca-certificates ninja-build ccache && \
     rm -rf /var/lib/apt/lists/*
