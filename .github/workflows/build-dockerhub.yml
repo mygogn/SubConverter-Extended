@@ -101,56 +101,43 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      # Build temporary image to extract generated files
-      - name: Build temporary image for file extraction (go-builder)
+      # Build ONCE to builder stage and load to Docker
+      # This single build includes ALL dependencies and generated files
+      - name: Build to builder stage (single build)
         uses: docker/build-push-action@v6
         with:
           context: .
           file: ./Dockerfile
-          load: true  # Load image to local Docker
-          tags: subconverter-temp:go-builder
-          target: go-builder  # Only build go-builder stage
-          cache-from: type=gha,scope=subconverter
-          cache-to: type=gha,mode=max,scope=subconverter
-
-      - name: Build temporary image for file extraction (builder)
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./Dockerfile
-          load: true  # Load image to local Docker
+          load: true
           tags: subconverter-temp:builder
-          target: builder  # Build to builder stage (includes header updates)
+          target: builder
+          build-args: |
+            THREADS=16
+            SHA=${{ needs.prepare.outputs.sha_short }}
+            VERSION=${{ needs.prepare.outputs.version }}
           cache-from: type=gha,scope=subconverter
           cache-to: type=gha,mode=max,scope=subconverter
 
-      - name: Extract generated files from go-builder
+      # Extract ALL generated files from the single build
+      - name: Extract generated files
         run: |
-          # Create temporary container from go-builder stage
-          CONTAINER_ID=$(docker create subconverter-temp:go-builder)
-          
-          # Extract Go-generated files
-          docker cp $CONTAINER_ID:/build/bridge/go.mod bridge/go.mod
-          docker cp $CONTAINER_ID:/build/bridge/go.sum bridge/go.sum
-          docker cp $CONTAINER_ID:/build/bridge/mihomo_schemes.h src/parser/mihomo_schemes.h
-          docker cp $CONTAINER_ID:/build/bridge/param_compat.h src/parser/param_compat.h
-          
-          # Cleanup
-          docker rm $CONTAINER_ID
-
-      - name: Extract updated header files from builder
-        run: |
-          # Create temporary container from builder stage
           CONTAINER_ID=$(docker create subconverter-temp:builder)
           
-          # Extract updated header-only libraries
+          # Go module files (from go-builder, copied into builder stage)
+          docker cp $CONTAINER_ID:/src/bridge/go.mod bridge/go.mod
+          docker cp $CONTAINER_ID:/src/bridge/go.sum bridge/go.sum
+          
+          # Go-generated header files
+          docker cp $CONTAINER_ID:/src/src/parser/mihomo_schemes.h src/parser/mihomo_schemes.h
+          docker cp $CONTAINER_ID:/src/src/parser/param_compat.h src/parser/param_compat.h
+          
+          # Header-only libraries (downloaded by Dockerfile)
           docker cp $CONTAINER_ID:/src/include/httplib.h include/httplib.h
           docker cp $CONTAINER_ID:/src/include/nlohmann/json.hpp include/nlohmann/json.hpp
           docker cp $CONTAINER_ID:/src/include/inja.hpp include/inja.hpp
           docker cp $CONTAINER_ID:/src/include/jpcre2.hpp include/jpcre2.hpp
           docker cp $CONTAINER_ID:/src/include/quickjspp.hpp include/quickjspp.hpp
           
-          # Cleanup
           docker rm $CONTAINER_ID
 
       - name: Check for file changes
