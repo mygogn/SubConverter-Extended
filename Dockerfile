@@ -89,9 +89,11 @@ RUN set -xe && \
     cmake -DCMAKE_CXX_STANDARD=11 . && \
     make install -j ${THREADS}
 
-# Copy Go library from go-builder stage
+# Copy Go library and module files from go-builder stage
 COPY --from=go-builder /build/bridge/libmihomo.a /usr/lib/
 COPY --from=go-builder /build/bridge/libmihomo.h /usr/include/
+COPY --from=go-builder /build/bridge/go.mod /src/bridge/go.mod
+COPY --from=go-builder /build/bridge/go.sum /src/bridge/go.sum
 
 # build subconverter from THIS repository source (provided by build context)
 WORKDIR /src
