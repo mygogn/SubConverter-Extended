@@ -97,6 +97,7 @@ jobs:
     - name: Install toml11
       if: matrix.language == 'c-cpp'
       run: |
+        rm -rf toml11
         git clone --depth=1 --branch v4.3.0 https://github.com/ToruNiina/toml11
         cmake -S toml11 -B toml11/build -DTOML11_INSTALL=ON -DTOML11_BUILD_TESTS=OFF -DTOML11_BUILD_EXAMPLES=OFF
         cmake --build toml11/build -j$(nproc)
@@ -106,6 +107,7 @@ jobs:
     - name: Build QuickJS
       if: matrix.language == 'c-cpp' && steps.cache-cpp-deps.outputs.cache-hit != 'true'
       run: |
+        rm -rf quickjspp
         git clone --depth=1 https://github.com/ftk/quickjspp.git
         cd quickjspp
         git submodule update --init
@@ -121,6 +123,7 @@ jobs:
     - name: Build LibCron
       if: matrix.language == 'c-cpp' && steps.cache-cpp-deps.outputs.cache-hit != 'true'
       run: |
+        rm -rf libcron
         git clone https://github.com/PerMalmberg/libcron
         cd libcron
         git checkout v1.3.0  # Pin version for stability
