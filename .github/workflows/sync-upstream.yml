@@ -1,0 +1,41 @@
+name: Sync upstream and replay patches
+
+on:
+  schedule:
+    - cron: "0 */6 * * *"   # every 6 hours
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: master
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Add upstream and fetch
+        run: |
+          git remote add upstream https://github.com/asdlokj1qpi233/subconverter.git || true
+          git fetch upstream --prune
+
+      - name: Update upstream-master branch
+        run: |
+          git checkout upstream-master
+          git reset --hard upstream/master
+          git push origin upstream-master --force
+
+      - name: Rebase master onto upstream-master (replay your commits)
+        run: |
+          git checkout master
+          git rebase upstream-master
+          git push origin master --force-with-lease
