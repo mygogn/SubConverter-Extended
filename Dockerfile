@@ -146,16 +146,32 @@ RUN set -xe && \
 RUN set -xe && \
     mkdir -p /runtime-libs && \
     ldd /src/subconverter /usr/lib/libmihomo.so | \
-      awk '/=> \\/|^\\// {print $(NF-1)}' | \
+      awk '{for (i=1; i<=NF; i++) if ($i ~ /^\\//) print $i}' | \
       sort -u | \
       while read -r lib; do \
-        if [ -f "$lib" ]; then cp --parents "$lib" /runtime-libs/; fi; \
+        if [ -e "$lib" ]; then \
+          mkdir -p "/runtime-libs$(dirname "$lib")" && \
+          cp -a "$lib" "/runtime-libs$lib"; \
+        fi; \
       done && \
-    libc_path="$(ldd /src/subconverter | awk '/libc\\.so/ {print $(NF-1)}' | head -n1)" && \
-    libc_dir="$(dirname "$libc_path")" && \
+    for loader in /lib64/ld-linux-x86-64.so.2 /lib/x86_64-linux-gnu/ld-linux-x86-64.so.2; do \
+      if [ -e "$loader" ]; then \
+        mkdir -p "/runtime-libs$(dirname "$loader")" && \
+        cp -a "$loader" "/runtime-libs$loader"; \
+      fi; \
+    done && \
+    libc_path="$(ldd /src/subconverter | awk '$1 == \"libc.so.6\" {print $3; exit}')" && \
+    libc_dir="$(dirname "${libc_path:-/lib/x86_64-linux-gnu/libc.so.6}")" && \
     for extra in libnss_dns.so.2 libnss_files.so.2 libnss_compat.so.2 libresolv.so.2; do \
-      if [ -f "$libc_dir/$extra" ]; then cp --parents "$libc_dir/$extra" /runtime-libs/; fi; \
-    done
+      if [ -e "$libc_dir/$extra" ]; then \
+        mkdir -p "/runtime-libs$libc_dir" && \
+        cp -a "$libc_dir/$extra" "/runtime-libs$libc_dir/$extra"; \
+      fi; \
+    done && \
+    if [ -f /etc/nsswitch.conf ]; then \
+      mkdir -p /runtime-libs/etc && \
+      cp -a /etc/nsswitch.conf /runtime-libs/etc/nsswitch.conf; \
+    fi
 
 # ========== FINAL STAGE ==========
 # Alpine 运行时 + 搬运 glibc 依赖（不固定版本）
