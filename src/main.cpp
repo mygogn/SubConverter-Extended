@@ -167,6 +167,9 @@ int main(int argc, char *argv[]) {
       "GET", "/version", "text/html; charset=utf-8",
       [](RESPONSE_CALLBACK_ARGS) -> std::string {
         std::string build_id = BUILD_ID;
+        std::string build_date = BUILD_DATE;
+        std::string build_date_display =
+            build_date.empty() ? "unknown" : build_date;
         std::string commit_link =
             build_id.empty()
                 ? ""
@@ -377,6 +380,11 @@ int main(int argc, char *argv[]) {
                 <span class="info-label">Build:</span>
                 <span>)" +
                commit_link + R"(</span>
+            </div>
+            <div class="info-row">
+                <span class="info-label">Build Date:</span>
+                <span>)" +
+               build_date_display + R"(</span>
             </div>
         </div>
         
