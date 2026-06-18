@@ -1,0 +1,224 @@
+name: Sync Upstream
+
+on:
+  schedule:
+    - cron: "0 2 * * *"
+  workflow_dispatch:
+    inputs:
+      upstream_branch:
+        description: "Upstream branch to sync from"
+        required: false
+        default: "master"
+        type: string
+
+env:
+  UPSTREAM_REPO: asdlokj1qpi233/subconverter
+  UPSTREAM_BRANCH: ${{ github.event.inputs.upstream_branch || 'master' }}
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Fetch upstream
+        id: fetch
+        run: |
+          set -euo pipefail
+          git remote add upstream "https://github.com/${UPSTREAM_REPO}.git" 2>/dev/null || git remote set-url upstream "https://github.com/${UPSTREAM_REPO}.git"
+          git fetch --no-tags upstream "${UPSTREAM_BRANCH}"
+          UPSTREAM_HEAD=$(git rev-parse "upstream/${UPSTREAM_BRANCH}")
+          echo "upstream_head=${UPSTREAM_HEAD}" >> "$GITHUB_OUTPUT"
+          echo "Upstream HEAD: ${UPSTREAM_HEAD}"
+
+      - name: Check for new commits
+        id: check
+        run: |
+          set -euo pipefail
+          UPSTREAM_HEAD="${{ steps.fetch.outputs.upstream_head }}"
+          CURRENT_HEAD=$(git rev-parse HEAD)
+          echo "Current HEAD: ${CURRENT_HEAD}"
+          echo "Upstream HEAD: ${UPSTREAM_HEAD}"
+          
+          if [ "${CURRENT_HEAD}" = "${UPSTREAM_HEAD}" ]; then
+            echo "has_changes=false" >> "$GITHUB_OUTPUT"
+            echo "No new commits from upstream."
+            exit 0
+          fi
+          
+          # Check if upstream HEAD is ancestor of current (diverged) or current is ancestor of upstream
+          if git merge-base --is-ancestor "${CURRENT_HEAD}" "${UPSTREAM_HEAD}"; then
+            # Current is behind upstream, fast-forward possible
+            COMMIT_COUNT=$(git rev-list --count "${CURRENT_HEAD}..${UPSTREAM_HEAD}")
+            echo "has_changestrue" >> "$GITHUB_OUTPUT"
+            echo "commits_behind=${COMMIT_COUNT}" >> "$GITHUB_OUTPUT"
+            echo "Found ${COMMIT_COUNT} new commits from upstream."
+          else
+            echo "has_changes=diverged" >> "$GITHUB_OUTPUT"
+            echo "Branches have diverged. Manual merge may be required."
+          fi
+
+      - name: Create sync branch and cherry-pick
+        if: steps.check.outputs.has_changes == 'true'
+        id: sync
+        run: |
+          set -euo pipefail
+          UPSTREAM_HEAD="${{ steps.fetch.outputs.upstream_head }}"
+          CURRENT_HEAD=$(git rev-parse HEAD)
+          
+          # Create a unique branch name
+          SYNC_BRANCH="sync/upstream-$(date +%Y%m%d-%H%M%S)"
+          echo "sync_branch=${SYNC_BRANCH}" >> "$GITHUB_OUTPUT"
+          
+          # Create branch from current HEAD
+          git checkout -b "${SYNC_BRANCH}"
+          
+          # Try fast-forward merge
+          if git merge --ff-only "upstream/${UPSTREAM_BRANCH}"; then
+            echo "merge_result=fast-forward" >> "$GITHUB_OUTPUT"
+            echo "Successfully fast-forwarded to upstream."
+          else
+            # If fast-forward fails, try a regular merge
+            echo "Fast-forward failed, attempting merge..."
+            if git merge --no-ff -m "chore: sync upstream changes" "upstream/${UPSTREAM_BRANCH}"; then
+              echo "merge_result=merge" >> "$GITHUB_OUTPUT"
+              echo "Successfully merged upstream changes."
+            else
+              echo "merge_result=conflict" >> "$GITHUB_OUTPUT"
+              echo "Merge conflict detected."
+              git merge --abort || true
+              exit 1
+            fi
+          fi
+          
+          # Push the sync branch
+          git push origin "${SYNC_BRANCH}"
+
+      - name: Create Pull Request
+        if: steps.check.outputs.has_changes == 'true' && steps.sync.outputs.merge_result != 'conflict'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          SYNC_BRANCH="${{ steps.sync.outputs.sync_branch }}"
+          UPSTREAM_HEAD="${{ steps.fetch.outputs.upstream_head }}"
+          COMMITS_BEHIND="${{ steps.check.outputs.commits_behind }}"
+          
+          # Generate PR body with commit list
+          COMMIT_LIST=$(git log --pretty=format:'- %h %s' "HEAD~${COMMITS_BEHIND}..HEAD" 2>/dev/null || echo "See commit history for details.")
+          
+          PR_BODY=$(cat <<EOF
+          ## 上游同步
+          
+          自动同步上游仓库 [\`${{ env.UPSTREAM_REPO }}\`](https://github.com/${{ env.UPSTREAM_REPO }}) 的更新。
+          
+          ### 同步信息
+          - **上游分支**: \`${{ env.UPSTREAM_BRANCH }}\`
+          - **上游 HEAD**: [\`${UPSTREAM_HEAD:0:7}\`](https://github.com/${{ env.UPSTREAM_REPO }}/commit/${UPSTREAM_HEAD})
+          - **新增提交数**: ${COMMITS_BEHIND}
+          - **同步时间**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          
+          ### 提交列表
+          ${COMMIT_LIST}
+          
+          ---
+          *此 PR 由 GitHub Actions 自动创建。*
+          EOF
+          )
+          
+          # Check if a sync PR already exists
+          EXISTING_PR=$(gh pr list --head "${SYNC_BRANCH}" --json number --jq '.[0].number' 2>/dev/null || true)
+          
+          if [ -n "${EXISTING_PR}" ] && [ "${EXISTING_PR}" != "null" ]; then
+            echo "PR #${EXISTING_PR} already exists for this branch."
+            exit 0
+          fi
+          
+          # Create the PR
+          gh pr create \
+            --title "chore: sync upstream (${COMMITS_BEHIND} commits)" \
+            --body "${PR_BODY}" \
+            --base master \
+            --head "${SYNC_BRANCH}" \
+            --label "upstream-sync"
+
+      - name: Handle diverged branches
+        if: steps.check.outputs.has_changes == 'diverged'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          UPSTREAM_HEAD="${{ steps.fetch.outputs.upstream_head }}"
+          
+          # Create an issue to notify about divergence
+          ISSUE_TITLE="上游同步：分支已发散"
+          ISSUE_BODY=$(cat <<EOF
+          ## 分支发散警告
+          
+          当前仓库与上游 [\`${{ env.UPSTREAM_REPO }}\`](https://github.com/${{ env.UPSTREAM_REPO }}) 的分支已经发散，无法自动同步。
+          
+          ### 详情
+          - **上游分支**: \`${{ env.UPSTREAM_BRANCH }}\`
+          - **上游 HEAD**: [\`${UPSTREAM_HEAD:0:7}\`](https://github.com/${{ env.UPSTREAM_REPO }}/commit/${UPSTREAM_HEAD})
+          - **检测时间**: $(date -u +"%Y-%m-%d %H:%M:%S UTC")
+          
+          ### 建议操作
+          1. 手动创建一个新的同步分支：
+             \`\`\`bash
+             git fetch upstream
+             git checkout -b sync/manual-fix
+             git merge upstream/${{ env.UPSTREAM_BRANCH }}
+             # 解决冲突后
+             git push origin sync/manual-fix
+             \`\`\`
+          2. 创建 PR 并解决冲突
+          
+          ---
+          *此 Issue 由 GitHub Actions 自动创建。*
+          EOF
+          )
+          
+          # Check if an open issue already exists
+          EXISTING_ISSUE=$(gh issue list --search "${ISSUE_TITLE}" --state open --json number --jq '.[0].number' 2>/dev/null || true)
+          
+          if [ -n "${EXISTING_ISSUE}" ] && [ "${EXISTING_ISSUE}" != "null" ]; then
+            echo "Issue #${EXISTING_ISSUE} already exists."
+            exit 0
+          fi
+          
+          gh issue create \
+            --title "${ISSUE_TITLE}" \
+            --body "${ISSUE_BODY}" \
+            --label "upstream-sync,help wanted"
+
+      - name: Report sync summary
+        if: always()
+        run: |
+          echo "## 上游同步摘要" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **上游仓库**: ${{ env.UPSTREAM_REPO }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **上游分支**: ${{ env.UPSTREAM_BRANCH }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **上游 HEAD**: ${{ steps.fetch.outputs.upstream_head }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **变更状态**: ${{ steps.check.outputs.has_changes }}" >> "$GITHUB_STEP_SUMMARY"
+          
+          if [ "${{ steps.check.outputs.has_changes }}" = "true" ]; then
+            echo "- **同步分支**: ${{ steps.sync.outputs.sync_branch }}" >> "$GITHUB_STEP_SUMMARY"
+            echo "- **合并结果**: ${{ steps.sync.outputs.merge_result }}" >> "$GITHUB_STEP_SUMMARY"
+            echo "- **落后提交数**: ${{ steps.check.outputs.commits_behind }}" >> "$GITHUB_STEP_SUMMARY"
+          elif [ "${{ steps.check.outputs.has_changes }}" = "diverged" ]; then
+            echo "- **注意**: 分支已发散，已创建 Issue 通知" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "- **状态**: 已是最新，无需同步" >> "$GITHUB_STEP_SUMMARY"
+          fi
